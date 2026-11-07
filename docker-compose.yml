@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentinel-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=False
+      - SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+      - MFA_ENCRYPTION_KEY=k8Z_0sX2wV7mQ9tL4rP1yN3eU6bJ8hF5xG2aD4cE6wA=
+      - DATABASE_URL=postgresql+asyncpg://sentinel_user:sentinel_secret_password@db:5432/sentinel_db
+      - REDIS_URL=redis://redis:6379/0
+      - RATE_LIMIT_PER_MINUTE=60
+      - AUTH_RATE_LIMIT_PER_MINUTE=10
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sentinel-net
+
+  db:
+    image: postgres:16-alpine
+    container_name: sentinel-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=sentinel_user
+      - POSTGRES_PASSWORD=sentinel_secret_password
+      - POSTGRES_DB=sentinel_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel_user -d sentinel_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentinel-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "redis_secure_password"]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secure_password", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentinel-net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sentinel-net:
+    driver: bridge
