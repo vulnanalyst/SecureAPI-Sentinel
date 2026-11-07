@@ -31,3 +31,4 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                 pass
 
         return await call_next(request)
+

@@ -30,3 +30,4 @@ class UserSession(Base):
     )
 
     user = relationship("User", back_populates="sessions")
+

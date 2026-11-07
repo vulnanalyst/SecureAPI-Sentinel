@@ -11,3 +11,4 @@ api_v1_router.include_router(security_router)
 api_v1_router.include_router(admin_router)
 
 __all__ = ["api_v1_router"]
+

@@ -37,3 +37,4 @@ class AuditCorrelationMiddleware(BaseHTTPMiddleware):
         )
 
         return response
+

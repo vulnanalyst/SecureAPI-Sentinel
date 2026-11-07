@@ -1,0 +1,974 @@
+{
+  "info": {
+    "_postman_id": "secureapi-sentinel-v1-collection",
+    "name": "SecureAPI Sentinel",
+    "description": "Complete API test collection for the SecureAPI Sentinel cybersecurity capstone project.\n\nIncludes authentication, user management, security monitoring, and administration endpoints.\nAll requests use environment variables — no credentials are hardcoded.\n\nEnvironment variables required:\n- baseUrl: http://localhost:8000\n- accessToken (auto-set by login tests)\n- refreshToken (auto-set by login tests)\n- userId (auto-set by registration tests)\n- adminToken (auto-set by admin login)\n- superAdminToken (auto-set by super admin login)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8000", "type": "string"},
+    {"key": "accessToken", "value": "", "type": "string"},
+    {"key": "refreshToken", "value": "", "type": "string"},
+    {"key": "userId", "value": "", "type": "string"},
+    {"key": "adminToken", "value": "", "type": "string"},
+    {"key": "superAdminToken", "value": "", "type": "string"},
+    {"key": "resetToken", "value": "", "type": "string"},
+    {"key": "mfaSecret", "value": "", "type": "string"}
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Authentication endpoints: registration, login, logout, token refresh, password reset, MFA.",
+      "item": [
+        {
+          "name": "Register New User",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/register", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","register"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"SecurePass#2026!\",\n  \"full_name\": \"Test User\"\n}"
+            },
+            "description": "Register a new user account. Returns user ID and verification status."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', function() { pm.response.to.have.status(201); });",
+                  "pm.test('Response has user_id', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('user_id');",
+                  "  pm.collectionVariables.set('userId', json.user_id);",
+                  "});",
+                  "pm.test('No password in response', function() {",
+                  "  var body = pm.response.text();",
+                  "  pm.expect(body).to.not.include('password');",
+                  "  pm.expect(body).to.not.include('hash');",
+                  "});",
+                  "pm.test('Security headers present', function() {",
+                  "  pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff');",
+                  "  pm.expect(pm.response.headers.get('X-Frame-Options')).to.eql('DENY');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register - Duplicate Email (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/register", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","register"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"SecurePass#2026!\",\n  \"full_name\": \"Test User\"\n}"
+            },
+            "description": "Attempt to register with a duplicate email. Expect 409 Conflict."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409 Conflict', function() { pm.response.to.have.status(409); });",
+                  "pm.test('Error message does not leak internals', function() {",
+                  "  var body = pm.response.text();",
+                  "  pm.expect(body).to.not.include('SQL');",
+                  "  pm.expect(body).to.not.include('Traceback');",
+                  "  pm.expect(body).to.not.include('Exception');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register - Weak Password (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/register", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","register"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"weakpass@example.com\",\n  \"password\": \"password\",\n  \"full_name\": \"Weak Password User\"\n}"
+            },
+            "description": "Attempt to register with a weak password. Expect 400 or 422 validation error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 or 422', function() {",
+                  "  pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Valid Credentials",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","login"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "description": "Login with valid credentials. Automatically stores access_token and refresh_token as collection variables."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Response contains tokens', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('access_token');",
+                  "  pm.expect(json).to.have.property('refresh_token');",
+                  "  pm.expect(json.token_type).to.eql('bearer');",
+                  "  pm.collectionVariables.set('accessToken', json.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', json.refresh_token);",
+                  "});",
+                  "pm.test('No password in response', function() {",
+                  "  pm.expect(pm.response.text()).to.not.include('password_hash');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Invalid Credentials (Negative)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","login"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"WrongPassword!\"\n}"
+            },
+            "description": "Login with invalid credentials. Expect 401 Unauthorized with generic error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', function() { pm.response.to.have.status(401); });",
+                  "pm.test('Generic error message (no user enumeration)', function() {",
+                  "  var body = pm.response.text();",
+                  "  pm.expect(body).to.not.include('does not exist');",
+                  "  pm.expect(body).to.not.include('wrong password');",
+                  "  pm.expect(body).to.not.include('SQL');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - SQL Injection Attempt (Security)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","login"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"' OR 1=1 --\",\n  \"password\": \"anything\"\n}"
+            },
+            "description": "SQL injection attempt in email field. Must return 401 or 422, never 200."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('SQL injection does not succeed (not 200)', function() {",
+                  "  pm.expect(pm.response.code).to.not.eql(200);",
+                  "});",
+                  "pm.test('Status is 401 or 422', function() {",
+                  "  pm.expect([401, 422]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('No SQL error in response body', function() {",
+                  "  var body = pm.response.text().toLowerCase();",
+                  "  pm.expect(body).to.not.include('syntax error');",
+                  "  pm.expect(body).to.not.include('sqlite');",
+                  "  pm.expect(body).to.not.include('postgresql');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","refresh"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "description": "Exchange refresh token for new access + refresh token pair. Old refresh token is immediately revoked (rotation)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('New tokens issued', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('access_token');",
+                  "  pm.expect(json).to.have.property('refresh_token');",
+                  "  pm.collectionVariables.set('accessToken', json.access_token);",
+                  "  pm.collectionVariables.set('refreshToken', json.refresh_token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token - Reuse Attack (Security)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/refresh", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","refresh"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"PREVIOUSLY_USED_REFRESH_TOKEN_HERE\"\n}"
+            },
+            "description": "Attempt to reuse an already-rotated refresh token. Must return 401 and revoke the entire token family."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Reused token rejected (401)', function() {",
+                  "  pm.expect([401, 403]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/logout", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","logout"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "description": "Logout the current session. Revokes the refresh token immediately."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Logout confirmed', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.message).to.include('logged out');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","forgot-password"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\"\n}"
+            },
+            "description": "Request a password reset email. Always returns 200 (no user enumeration)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Always returns 200 (no user enumeration)', function() {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Generic message returned', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","reset-password"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"new_password\": \"NewSecurePass#2026!\"\n}"
+            },
+            "description": "Reset the password using the token from the forgot-password email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "MFA Enable",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/mfa/enable", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","mfa","enable"]},
+            "body": {"mode": "raw", "raw": "{}"},
+            "description": "Initiate TOTP MFA setup. Returns provisioning URI and backup codes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Provisioning URI returned', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('provisioning_uri');",
+                  "  pm.expect(json).to.have.property('backup_codes');",
+                  "  pm.collectionVariables.set('mfaSecret', json.secret || '');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "MFA Verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/mfa/verify", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","mfa","verify"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totp_code\": \"{{totpCode}}\"\n}"
+            },
+            "description": "Verify TOTP code to complete MFA enrollment. Use an authenticator app with the provisioning URI."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK or 400 (invalid code expected in automated run)', function() {",
+                  "  pm.expect([200, 400]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User management endpoints: profile view/edit, user listing, role management, deletion.",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api","v1","users","me"]},
+            "description": "Get the authenticated user's own profile. No password or secrets in response."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Profile returned with correct fields', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('id');",
+                  "  pm.expect(json).to.have.property('email');",
+                  "  pm.expect(json).to.not.have.property('password_hash');",
+                  "  pm.expect(json).to.not.have.property('mfa_secret');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api","v1","users","me"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Name\"\n}"
+            },
+            "description": "Update the authenticated user's own profile information."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Name updated in response', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json.full_name).to.eql('Updated Name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Users (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users?page=1&page_size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","users"],
+              "query": [{"key": "page", "value": "1"}, {"key": "page_size", "value": "10"}]
+            },
+            "description": "List all users. Requires ADMIN or SUPER_ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Returns list of users', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array').or.have.property('users');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Users - Unauthorized (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/users", "host": ["{{baseUrl}}"], "path": ["api","v1","users"]},
+            "description": "Attempt to list all users as a regular USER. Must return 403 Forbidden (RBAC enforcement)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403 Forbidden (RBAC enforced)', function() {",
+                  "  pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","users","{{userId}}"]},
+            "description": "Get a specific user by ID. Admins can access any user; regular users can only access their own."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Other User By ID - BOLA Test (Security)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/00000000-0000-0000-0000-000000000001", "host": ["{{baseUrl}}"], "path": ["api","v1","users","00000000-0000-0000-0000-000000000001"]},
+            "description": "IDOR/BOLA test: regular user trying to access another user's profile. Must return 403 Forbidden."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('BOLA prevented - 403 or 404', function() {",
+                  "  pm.expect([403, 404]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assign Role to User (Super Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{superAdminToken}}"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/{{userId}}/role", "host": ["{{baseUrl}}"], "path": ["api","v1","users","{{userId}}","role"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roles\": [\"USER\"]\n}"
+            },
+            "description": "Assign roles to a user. Requires SUPER_ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assign Role - Privilege Escalation (Security)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/{{userId}}/role", "host": ["{{baseUrl}}"], "path": ["api","v1","users","{{userId}}","role"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roles\": [\"SUPER_ADMIN\"]\n}"
+            },
+            "description": "Privilege escalation attempt: regular user trying to assign SUPER_ADMIN to themselves. Must return 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Privilege escalation blocked (403)', function() {",
+                  "  pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete User (Super Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{superAdminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","users","{{userId}}"]},
+            "description": "Delete a user account. Requires SUPER_ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK or 404', function() {",
+                  "  pm.expect([200, 204, 404]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Security",
+      "description": "Security monitoring endpoints: health, security events, audit logs.",
+      "item": [
+        {
+          "name": "Health Check (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/api/v1/security/health", "host": ["{{baseUrl}}"], "path": ["api","v1","security","health"]},
+            "description": "Public health check endpoint. No authentication required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Health data returned', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json.status).to.eql('healthy');",
+                  "});",
+                  "pm.test('Security headers present', function() {",
+                  "  pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff');",
+                  "  pm.expect(pm.response.headers.get('Strict-Transport-Security')).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Security Events (Analyst+)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/security/events?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","security","events"],
+              "query": [{"key": "limit", "value": "20"}]
+            },
+            "description": "List security events. Requires SECURITY_ANALYST, ADMIN, or SUPER_ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Events array returned', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('events');",
+                  "  pm.expect(json.events).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Security Events - Unauthorized (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/security/events", "host": ["{{baseUrl}}"], "path": ["api","v1","security","events"]},
+            "description": "Regular user trying to access security events. Must return 403 Forbidden."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403 Forbidden', function() {",
+                  "  pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Audit Logs (Admin+)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/security/audit-logs?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","security","audit-logs"],
+              "query": [{"key": "limit", "value": "20"}]
+            },
+            "description": "List audit logs. Requires ADMIN or SUPER_ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Audit logs returned', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('logs');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Administration",
+      "description": "Administration endpoints: dashboard, user management overview, system status.",
+      "item": [
+        {
+          "name": "Admin Dashboard (Admin+)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/admin/dashboard", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","dashboard"]},
+            "description": "Admin dashboard with key metrics. Requires ADMIN or SUPER_ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('Dashboard data returned', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('total_users').or.have.property('stats');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin Dashboard - Unauthorized (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/admin/dashboard", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","dashboard"]},
+            "description": "Regular user trying to access admin dashboard. Must return 403 Forbidden."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403 Forbidden', function() {",
+                  "  pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin Users List",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/admin/users", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","users"]},
+            "description": "Admin user listing with extended metadata. Requires ADMIN or SUPER_ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "System Status (Super Admin only)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{superAdminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/admin/system-status", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","system-status"]},
+            "description": "Full system status with sensitive metrics. Requires SUPER_ADMIN role only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', function() { pm.response.to.have.status(200); });",
+                  "pm.test('System data returned', function() {",
+                  "  var json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "System Status - Admin Denied (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/admin/system-status", "host": ["{{baseUrl}}"], "path": ["api","v1","admin","system-status"]},
+            "description": "ADMIN (not SUPER_ADMIN) trying to access system status. Must return 403 Forbidden (Function Level Authorization)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Admin blocked from system-status (403)', function() {",
+                  "  pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Security - No Auth Tests",
+      "description": "Tests that verify endpoints properly reject unauthenticated requests.",
+      "item": [
+        {
+          "name": "Access Protected Endpoint - No Token (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api","v1","users","me"]},
+            "description": "Access protected endpoint without any token. Must return 401 Unauthorized."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', function() {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test('WWW-Authenticate header present', function() {",
+                  "  pm.expect(pm.response.headers.get('WWW-Authenticate')).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Access Protected Endpoint - Invalid Token (Negative)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer invalid.jwt.token"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/users/me", "host": ["{{baseUrl}}"], "path": ["api","v1","users","me"]},
+            "description": "Access protected endpoint with an invalid/tampered JWT. Must return 401."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401 Unauthorized', function() {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test('No stack trace in response', function() {",
+                  "  var body = pm.response.text();",
+                  "  pm.expect(body).to.not.include('Traceback');",
+                  "  pm.expect(body).to.not.include('File \"');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Oversized Payload (Security)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api","v1","auth","login"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"test@example.com\", \"payload\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}"
+            },
+            "description": "Send a small but non-empty oversized field. The real 10MB test should be done via script. This tests the route is accessible."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not an internal server error', function() {",
+                  "  pm.expect(pm.response.code).to.not.eql(500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -34,3 +34,4 @@ class DevelopmentEmailAdapter:
 
 
 email_adapter = DevelopmentEmailAdapter()
+

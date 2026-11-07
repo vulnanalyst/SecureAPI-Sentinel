@@ -105,6 +105,15 @@ def create_refresh_token(
     return raw_token, token_hash, fam_id, expires_at
 
 
+def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Ensures a datetime object is timezone-aware in UTC (neutralizes SQLite naive datetimes)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 # Sensitive Data Encryption (for TOTP secrets stored in DB)
 def _get_fernet_cipher() -> Fernet:
     """Retrieves or derives a valid 32-byte Fernet key from settings."""

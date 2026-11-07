@@ -3,9 +3,11 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.database.session import get_db
 from app.models.user import User
+from app.models.role import UserRole
 from app.schemas.auth import (
     UserRegisterRequest,
     UserLoginRequest,
@@ -185,7 +187,11 @@ async def verify_mfa(
                 detail="Invalid TOTP authentication code or backup code."
             )
 
-        res = await db.execute(select(User).where(User.id == user_id))
+        res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .where(User.id == user_id)
+        )
         user = res.scalar_one_or_none()
         if not user or not user.is_active or user.is_locked:
             raise HTTPException(status_code=401, detail="User account is inactive or locked.")

@@ -35,10 +35,10 @@ class User(Base):
     )
 
     # Relationships
-    roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
-    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
-    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
-    mfa = relationship("MFASecurity", back_populates="user", uselist=False, cascade="all, delete-orphan", lazy="selectin")
-    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
-    audit_logs = relationship("AuditLog", back_populates="user")
-    security_events = relationship("SecurityEvent", back_populates="user")
+    roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan", passive_deletes=True, lazy="selectin")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+    mfa = relationship("MFASecurity", back_populates="user", uselist=False, cascade="all, delete-orphan", passive_deletes=True, lazy="selectin")
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+    audit_logs = relationship("AuditLog", back_populates="user", passive_deletes=True)
+    security_events = relationship("SecurityEvent", back_populates="user", passive_deletes=True)

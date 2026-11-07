@@ -5,6 +5,7 @@ import jwt
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
+from sqlalchemy.orm import selectinload
 
 from app.models.user import User
 from app.models.role import Role, UserRole
@@ -24,6 +25,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     generate_secure_token,
+    ensure_utc,
 )
 from app.core.permissions import RoleEnum
 from app.services.email_adapter import email_adapter
@@ -36,7 +38,14 @@ class AuthService:
         cls, db: AsyncSession, payload: UserRegisterRequest, client_ip: Optional[str] = None
     ) -> User:
         # Check existing user
-        query = select(User).where(User.email == payload.email.lower().strip())
+        query = (
+            select(User)
+            .options(
+                selectinload(User.roles).selectinload(UserRole.role),
+                selectinload(User.mfa)
+            )
+            .where(User.email == payload.email.lower().strip())
+        )
         res = await db.execute(query)
         if res.scalar_one_or_none():
             raise HTTPException(
@@ -69,7 +78,14 @@ class AuthService:
             db.add(assoc)
 
         await db.commit()
-        await db.refresh(new_user)
+        
+        # Reload user with roles eagerly loaded
+        user_res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .where(User.id == new_user.id)
+        )
+        new_user = user_res.scalar_one()
 
         # Send welcome/verification email via adapter
         await email_adapter.send_email(
@@ -95,7 +111,14 @@ class AuthService:
     async def authenticate_user(
         cls, db: AsyncSession, payload: UserLoginRequest, client_ip: Optional[str] = None, user_agent: Optional[str] = None
     ) -> Union[TokenResponse, MFAChallengeResponse]:
-        query = select(User).where(User.email == payload.email.lower().strip())
+        query = (
+            select(User)
+            .options(
+                selectinload(User.roles).selectinload(UserRole.role),
+                selectinload(User.mfa)
+            )
+            .where(User.email == payload.email.lower().strip())
+        )
         res = await db.execute(query)
         user = res.scalar_one_or_none()
 
@@ -112,9 +135,10 @@ class AuthService:
             raise invalid_cred_exception
 
         # Check account lockout
+        lockout_until = ensure_utc(user.lockout_until)
         if user.is_locked:
-            if user.lockout_until and user.lockout_until > now:
-                remaining_secs = int((user.lockout_until - now).total_seconds())
+            if lockout_until and lockout_until > now:
+                remaining_secs = int((lockout_until - now).total_seconds())
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
                     detail=f"Account is temporarily locked due to repeated failed login attempts. Retry in {remaining_secs} seconds."
@@ -278,7 +302,8 @@ class AuthService:
             )
 
         # Check expiration
-        if rt.expires_at < now:
+        expires_at = ensure_utc(rt.expires_at)
+        if expires_at and expires_at < now:
             rt.is_revoked = True
             await db.commit()
             raise HTTPException(
@@ -290,8 +315,12 @@ class AuthService:
         rt.is_revoked = True
         rt.replaced_by_at = now
 
-        # Fetch user
-        user_res = await db.execute(select(User).where(User.id == rt.user_id))
+        # Fetch user with roles
+        user_res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .where(User.id == rt.user_id)
+        )
         user = user_res.scalar_one_or_none()
         if not user or not user.is_active or user.is_locked:
             raise HTTPException(
@@ -403,7 +432,8 @@ class AuthService:
         prt = res.scalar_one_or_none()
         now = datetime.now(timezone.utc)
 
-        if not prt or prt.expires_at < now:
+        prt_expires = ensure_utc(prt.expires_at) if prt else None
+        if not prt or (prt_expires and prt_expires < now):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid or expired password reset token."

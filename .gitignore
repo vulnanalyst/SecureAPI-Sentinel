@@ -46,3 +46,18 @@ coverage.xml
 
 # Docker
 .docker/
+
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+.pytest_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/

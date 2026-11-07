@@ -1,9 +1,11 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SecurityEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     user_id: Optional[str] = None
     event_type: str
@@ -13,11 +15,10 @@ class SecurityEventResponse(BaseModel):
     metadata_json: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class AuditLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     user_id: Optional[str] = None
     action: str
@@ -28,9 +29,6 @@ class AuditLogResponse(BaseModel):
     status_code: int
     details: Optional[str] = None
     timestamp: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class HealthResponse(BaseModel):

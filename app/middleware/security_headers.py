@@ -15,7 +15,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         headers = {
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY",
-            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; sandbox",
+            "Content-Security-Policy": (
+    "default-src 'none'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+    "img-src 'self' data: https://fastapi.tiangolo.com; "
+    "connect-src 'self'; "
+    "font-src 'self' data: https://cdn.jsdelivr.net https://unpkg.com; "
+    "frame-ancestors 'none';"
+) if request.url.path in {"/docs", "/redoc"} else
+"default-src 'none'; frame-ancestors 'none'; sandbox",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
             "Referrer-Policy": "strict-origin-when-cross-origin",
             "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
@@ -34,3 +43,4 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             del response.headers["x-powered-by"]
 
         return response
+

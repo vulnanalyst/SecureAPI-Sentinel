@@ -25,3 +25,4 @@ class MFASecurity(Base):
     )
 
     user = relationship("User", back_populates="mfa")
+

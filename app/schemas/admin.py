@@ -18,3 +18,4 @@ class SystemStatusResponse(BaseModel):
     redis_status: str
     active_middleware: List[str]
     timestamp: datetime
+

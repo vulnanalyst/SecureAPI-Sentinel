@@ -66,3 +66,4 @@ def setup_logger(name: str = "sentinel") -> logging.Logger:
 
 
 logger = setup_logger()
+

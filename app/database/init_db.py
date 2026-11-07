@@ -68,10 +68,10 @@ async def init_db():
 
         # 4. Seed Seed Baseline Accounts
         seed_users = [
-            ("superadmin@sentinel.local", "SuperAdmin#2026!Sec", "Sentinel Super Admin", RoleEnum.SUPER_ADMIN),
-            ("admin@sentinel.local", "Admin#2026!Sec", "Sentinel Admin", RoleEnum.ADMIN),
-            ("analyst@sentinel.local", "Analyst#2026!Sec", "Security Analyst", RoleEnum.SECURITY_ANALYST),
-            ("user@sentinel.local", "Standard#2026!Sec", "Standard User", RoleEnum.USER),
+            ("superadmin@sentinel.org", "SuperAdmin#2026!Sec", "Sentinel Super Admin", RoleEnum.SUPER_ADMIN),
+            ("admin@sentinel.org", "Admin#2026!Sec", "Sentinel Admin", RoleEnum.ADMIN),
+            ("analyst@sentinel.org", "Analyst#2026!Sec", "Security Analyst", RoleEnum.SECURITY_ANALYST),
+            ("user@sentinel.org", "Standard#2026!Sec", "Standard User", RoleEnum.USER),
         ]
 
         for email, password, full_name, role_enum in seed_users:

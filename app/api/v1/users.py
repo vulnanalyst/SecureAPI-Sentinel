@@ -101,3 +101,4 @@ async def delete_user(
         db=db, target_user_id=user_id, actor_user_id=current_user.id
     )
     return {"detail": f"User {user_id} deleted successfully."}
+

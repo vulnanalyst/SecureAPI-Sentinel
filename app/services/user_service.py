@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
 
 from app.models.user import User
 from app.models.role import Role, UserRole
@@ -28,7 +29,11 @@ class UserService:
 
     @classmethod
     async def get_by_id(cls, db: AsyncSession, user_id: str) -> UserResponse:
-        res = await db.execute(select(User).where(User.id == user_id))
+        res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .where(User.id == user_id)
+        )
         user = res.scalar_one_or_none()
         if not user:
             raise HTTPException(
@@ -41,7 +46,12 @@ class UserService:
     async def list_users(
         cls, db: AsyncSession, limit: int = 50, offset: int = 0
     ) -> List[UserResponse]:
-        res = await db.execute(select(User).limit(limit).offset(offset))
+        res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .limit(limit)
+            .offset(offset)
+        )
         users = res.scalars().all()
         return [cls._to_user_response(u) for u in users]
 
@@ -49,7 +59,11 @@ class UserService:
     async def update_profile(
         cls, db: AsyncSession, user_id: str, payload: UserUpdateRequest
     ) -> UserResponse:
-        res = await db.execute(select(User).where(User.id == user_id))
+        res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .where(User.id == user_id)
+        )
         user = res.scalar_one_or_none()
         if not user:
             raise HTTPException(
@@ -62,7 +76,14 @@ class UserService:
         user.updated_at = datetime.now(timezone.utc)
 
         await db.commit()
-        await db.refresh(user)
+        
+        # Reload with relationships
+        user_res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .where(User.id == user.id)
+        )
+        user = user_res.scalar_one()
 
         await audit_service.log_action(
             db=db,
@@ -78,7 +99,11 @@ class UserService:
     async def assign_roles(
         cls, db: AsyncSession, target_user_id: str, new_role_names: List[str], actor_user_id: str
     ) -> UserResponse:
-        res = await db.execute(select(User).where(User.id == target_user_id))
+        res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles).selectinload(UserRole.role))
+            .where(User.id == target_user_id)
+        )
         user = res.scalar_one_or_none()
         if not user:
             raise HTTPException(
@@ -86,8 +111,8 @@ class UserService:
                 detail="Target user not found"
             )
 
-        # Clear existing roles
-        await db.execute(delete(UserRole).where(UserRole.user_id == target_user_id))
+        # Clear existing role relationships
+        user.roles.clear()
 
         for r_name in new_role_names:
             role_res = await db.execute(select(Role).where(Role.name == r_name.strip().upper()))
@@ -97,12 +122,11 @@ class UserService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Role '{r_name}' does not exist"
                 )
-            assoc = UserRole(user_id=user.id, role_id=role_obj.id)
-            db.add(assoc)
+            assoc = UserRole(user_id=user.id, role_id=role_obj.id, role=role_obj)
+            user.roles.append(assoc)
 
         user.updated_at = datetime.now(timezone.utc)
         await db.commit()
-        await db.refresh(user)
 
         await audit_service.log_action(
             db=db,
@@ -119,7 +143,11 @@ class UserService:
     async def delete_user(
         cls, db: AsyncSession, target_user_id: str, actor_user_id: str
     ) -> bool:
-        res = await db.execute(select(User).where(User.id == target_user_id))
+        res = await db.execute(
+            select(User)
+            .options(selectinload(User.roles))
+            .where(User.id == target_user_id)
+        )
         user = res.scalar_one_or_none()
         if not user:
             raise HTTPException(

@@ -57,3 +57,4 @@ class SecurityEvent(Base):
     )
 
     user = relationship("User", back_populates="security_events")
+

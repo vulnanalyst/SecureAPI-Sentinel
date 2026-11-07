@@ -139,3 +139,4 @@ async def root():
         "status": "OPERATIONAL",
         "documentation": "/docs"
     }
+

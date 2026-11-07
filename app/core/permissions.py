@@ -78,3 +78,4 @@ def has_permission(user_roles: list[str], required_permission: PermissionEnum) -
         except ValueError:
             continue
     return False
+

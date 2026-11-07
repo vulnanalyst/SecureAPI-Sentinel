@@ -77,3 +77,4 @@ class MFAEnableResponse(BaseModel):
 class MFAVerifyRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=8)
     mfa_token: Optional[str] = None
+
