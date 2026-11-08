@@ -19,20 +19,14 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Cryptographic & Authentication Secrets
-    SECRET_KEY: str = Field(
-        default="09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7",
-        description="Master secret key for JWT signing"
-    )
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # TOTP MFA Settings & Secret Encryption Key (Must be 32 URL-safe base64 or 32 hex chars)
     MFA_ISSUER: str = "SecureAPI Sentinel"
-    MFA_ENCRYPTION_KEY: str = Field(
-        default="k8Z_0sX2wV7mQ9tL4rP1yN3eU6bJ8hF5xG2aD4cE6wA=",
-        description="Fernet/AES-256 encryption key for sensitive MFA secret storage"
-    )
+    MFA_ENCRYPTION_KEY: str
 
     # Brute Force & Account Lockout
     MAX_FAILED_LOGIN_ATTEMPTS: int = 5
